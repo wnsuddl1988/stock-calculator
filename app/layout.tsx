@@ -13,8 +13,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "피보나치 되돌림 계산기",
-  description: "주가 피보나치 되돌림 지지선 계산기",
+  title: "임펄스 파동 계산기",
+  description: "임펄스 파동 피보나치 되돌림 매수구간 계산기",
 };
 
 export default function RootLayout({
