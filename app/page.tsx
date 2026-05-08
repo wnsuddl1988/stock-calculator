@@ -119,6 +119,8 @@ type CalcResult = {
   intermediateAvgPrice: number | null
   finalAvgPrice: number | null
   sell1Price: number | null
+  sell1aPrice: number | null
+  sell1bPrice: number | null
   sell2Price: number | null
 }
 
@@ -156,6 +158,8 @@ function calcResults(entry: StockEntry): CalcResult | null {
   }
 
   let sell1Price: number | null = null
+  let sell1aPrice: number | null = null
+  let sell1bPrice: number | null = null
   let sell2Price: number | null = null
 
   if (entry.waveType === 'wave2' && finalAvgPrice !== null) {
@@ -163,8 +167,12 @@ function calcResults(entry: StockEntry): CalcResult | null {
     sell1Price = roundToTick(after * 0.99, entry.market)
     // 2차 매도: 평단가 + (1파 최고점 - 1파 시작점) * 1.618
     sell2Price = roundToTick(finalAvgPrice + diff * 1.618, entry.market)
-  } else if (entry.waveType === 'wave4' && finalAvgPrice !== null) {
-    // 1차 매도: 최종 평단가 기준 +5%
+  } else if (entry.waveType === 'wave4' && finalAvgPrice !== null && intermediateAvgPrice !== null) {
+    // 1차 체결 시: 1차 매수가 * 1.05
+    sell1aPrice = roundToTick(buyResults[0].price * 1.05, entry.market)
+    // 2차 체결 시: 1~2차 평단가 * 1.05
+    sell1bPrice = roundToTick(intermediateAvgPrice * 1.05, entry.market)
+    // 3차 체결 시(= 기존 sell1Price): 최종 평단가 * 1.05
     sell1Price = roundToTick(finalAvgPrice * 1.05, entry.market)
     // 2차 매도: 3파 최고점(after) * 0.99
     sell2Price = roundToTick(after * 0.99, entry.market)
@@ -191,6 +199,8 @@ function calcResults(entry: StockEntry): CalcResult | null {
     intermediateAvgPrice,
     finalAvgPrice,
     sell1Price,
+    sell1aPrice,
+    sell1bPrice,
     sell2Price,
   }
 }
@@ -620,8 +630,8 @@ export default function Home() {
                           </div>
                         )}
 
-                        {/* 1차 매도 */}
-                        {(entry.waveType === 'wave2' || entry.waveType === 'wave4' || entry.waveType === 'wave5') && (
+                        {/* 1차 매도 — wave2 / wave5: 단일 가격 */}
+                        {(entry.waveType === 'wave2' || entry.waveType === 'wave5') && (
                           <div className={`border rounded-lg px-3 py-2.5 ${T.sellBox1}`}>
                             <div className="flex items-start justify-between gap-2">
                               <div className="leading-tight min-w-0">
@@ -629,8 +639,6 @@ export default function Home() {
                                 <p className="text-xs opacity-60 break-keep">
                                   {entry.waveType === 'wave2'
                                     ? '1차 수익실현 (1파 고점 저항대 1% 하단)'
-                                    : entry.waveType === 'wave4'
-                                    ? '최종 평단가 기준 +5% 익절 (HTS 잔고 평단가 연동 자동매도 설정 권장)'
                                     : '1차 수익실현 (거대 낙폭의 0.382 기술적 반등)'}
                                 </p>
                               </div>
@@ -643,6 +651,33 @@ export default function Home() {
                                 </span>
                               </div>
                             </div>
+                          </div>
+                        )}
+
+                        {/* 1차 매도 — wave4: 체결 구간별 3단계 가격 */}
+                        {entry.waveType === 'wave4' && (
+                          <div className={`border rounded-lg px-3 py-3 ${T.sellBox1}`}>
+                            <p className={`text-xs font-bold ${T.sellLabel1} mb-2`}>📈 1차 매도 · 비중 50% (체결 구간별 +5% 익절가)</p>
+                            <div className="space-y-1.5">
+                              {([
+                                { label: '1차 체결 시', price: res?.sell1aPrice },
+                                { label: '2차 체결 시', price: res?.sell1bPrice },
+                                { label: '3차 체결 시', price: res?.sell1Price },
+                              ] as { label: string; price: number | null | undefined }[]).map(({ label, price }) => (
+                                <div key={label} className="flex items-center justify-between gap-2">
+                                  <span className="text-xs opacity-60 shrink-0">{label}</span>
+                                  <span className="text-sm font-bold tabular-nums">
+                                    {price != null
+                                      ? <>{formatPrice(price)}<span className="text-xs font-normal ml-0.5">원</span></>
+                                      : <span className={T.empty}>-</span>
+                                    }
+                                  </span>
+                                </div>
+                              ))}
+                            </div>
+                            <p className={`text-xs mt-2.5 pt-2 border-t opacity-60 ${dark ? 'border-cyan-800' : 'border-cyan-200'}`}>
+                              보유 물량에 맞는 가격으로 HTS 개별 지정가 매도 설정
+                            </p>
                           </div>
                         )}
 
