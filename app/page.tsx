@@ -164,8 +164,8 @@ function calcResults(entry: StockEntry): CalcResult | null {
     // 2차 매도: 평단가 + (1파 최고점 - 1파 시작점) * 1.618
     sell2Price = roundToTick(finalAvgPrice + diff * 1.618, entry.market)
   } else if (entry.waveType === 'wave4' && finalAvgPrice !== null) {
-    // 1차 매도: 평단가 + (3파 최고점 - 평단가) * 0.382
-    sell1Price = roundToTick(finalAvgPrice + (after - finalAvgPrice) * 0.382, entry.market)
+    // 1차 매도: 최종 평단가 기준 +5%
+    sell1Price = roundToTick(finalAvgPrice * 1.05, entry.market)
     // 2차 매도: 3파 최고점(after) * 0.99
     sell2Price = roundToTick(after * 0.99, entry.market)
   } else if (entry.waveType === 'wave5' && finalAvgPrice !== null) {
@@ -630,7 +630,7 @@ export default function Home() {
                                   {entry.waveType === 'wave2'
                                     ? '1차 수익실현 (1파 고점 저항대 1% 하단)'
                                     : entry.waveType === 'wave4'
-                                    ? '1차 수익실현 (단기 낙폭 0.382 기계적 되돌림)'
+                                    ? '최종 평단가 기준 +5% 익절 (HTS 잔고 평단가 연동 자동매도 설정 권장)'
                                     : '1차 수익실현 (거대 낙폭의 0.382 기술적 반등)'}
                                 </p>
                               </div>
