@@ -73,8 +73,8 @@ const WAVE_CONFIGS: Record<WaveType, WaveConfig> = {
       { r: 0.705, w: 0.4, label: '0.705 되돌림 · 비중 40%' },
       { r: 0.786, w: 0.4, label: '0.786 되돌림 · 비중 40%' },
     ],
-    stopLossR: 1.0,
-    stopLossLabel: '1파 시작점 이탈',
+    stopLossR: 0.886,
+    stopLossLabel: '투매 경계선: 0.886 되돌림 이탈',
     avgPriceR: null,
     beforeLabel: '1파 시작점 (최저점)',
     afterLabel: '5파 최고점 (피날레)',
@@ -168,6 +168,11 @@ function calcResults(entry: StockEntry): CalcResult | null {
     sell1Price = roundToTick(finalAvgPrice + (after - finalAvgPrice) * 0.382, entry.market)
     // 2차 매도: 3파 최고점(after) * 0.99
     sell2Price = roundToTick(after * 0.99, entry.market)
+  } else if (entry.waveType === 'wave5' && finalAvgPrice !== null) {
+    // 1차 매도: 평단가 + (5파 최고점 - 평단가) * 0.382
+    sell1Price = roundToTick(finalAvgPrice + (after - finalAvgPrice) * 0.382, entry.market)
+    // 2차 매도: 평단가 + (5파 최고점 - 평단가) * 0.618
+    sell2Price = roundToTick(finalAvgPrice + (after - finalAvgPrice) * 0.618, entry.market)
   }
 
   return {
@@ -602,7 +607,7 @@ export default function Home() {
                         </div>
 
                         {/* 목표 매도가 구분선 */}
-                        {(entry.waveType === 'wave2' || entry.waveType === 'wave4') && (
+                        {(entry.waveType === 'wave2' || entry.waveType === 'wave4' || entry.waveType === 'wave5') && (
                           <div className={`flex items-center gap-2 py-0.5`}>
                             <div className={`flex-1 border-t border-dashed ${dark ? 'border-cyan-800' : 'border-cyan-300'}`} />
                             <span className={`text-xs font-semibold px-1 ${dark ? 'text-cyan-600' : 'text-cyan-500'}`}>목표 매도가 (수익실현)</span>
@@ -611,7 +616,7 @@ export default function Home() {
                         )}
 
                         {/* 1차 매도 */}
-                        {(entry.waveType === 'wave2' || entry.waveType === 'wave4') && (
+                        {(entry.waveType === 'wave2' || entry.waveType === 'wave4' || entry.waveType === 'wave5') && (
                           <div className={`border rounded-lg px-3 py-2.5 ${T.sellBox1}`}>
                             <div className="flex items-start justify-between gap-2">
                               <div className="leading-tight min-w-0">
@@ -619,7 +624,9 @@ export default function Home() {
                                 <p className="text-xs opacity-60 break-keep">
                                   {entry.waveType === 'wave2'
                                     ? '1차 수익실현 (1파 고점 저항대 1% 하단)'
-                                    : '1차 수익실현 (단기 낙폭 0.382 기계적 되돌림)'}
+                                    : entry.waveType === 'wave4'
+                                    ? '1차 수익실현 (단기 낙폭 0.382 기계적 되돌림)'
+                                    : '1차 수익실현 (거대 낙폭의 0.382 기술적 반등)'}
                                 </p>
                               </div>
                               <div className="text-right shrink-0">
@@ -635,7 +642,7 @@ export default function Home() {
                         )}
 
                         {/* 2차 매도 */}
-                        {(entry.waveType === 'wave2' || entry.waveType === 'wave4') && (
+                        {(entry.waveType === 'wave2' || entry.waveType === 'wave4' || entry.waveType === 'wave5') && (
                           <div className={`border rounded-lg px-3 py-2.5 ${T.sellBox2}`}>
                             <div className="flex items-start justify-between gap-2">
                               <div className="leading-tight min-w-0">
@@ -643,7 +650,9 @@ export default function Home() {
                                 <p className="text-xs opacity-60 break-keep">
                                   {entry.waveType === 'wave2'
                                     ? '최종 전량매도 (피보나치 확장 1.618)'
-                                    : '최종 전량매도 (쌍봉 마지노선 1% 하단)'}
+                                    : entry.waveType === 'wave4'
+                                    ? '최종 전량매도 (쌍봉 마지노선 1% 하단)'
+                                    : '최종 전량매도 (구조적 저항선 0.618 회귀)'}
                                 </p>
                               </div>
                               <div className="text-right shrink-0">
