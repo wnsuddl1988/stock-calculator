@@ -73,8 +73,8 @@ const WAVE_CONFIGS: Record<WaveType, WaveConfig> = {
       { r: 0.705, w: 0.4, label: '0.705 되돌림 · 비중 40%' },
       { r: 0.786, w: 0.4, label: '0.786 되돌림 · 비중 40%' },
     ],
-    stopLossR: 0.886,
-    stopLossLabel: '투매 경계선: 0.886 되돌림 이탈',
+    stopLossR: null,
+    stopLossLabel: null,
     avgPriceR: null,
     beforeLabel: '1파 시작점 (최저점)',
     afterLabel: '5파 최고점 (피날레)',
@@ -120,7 +120,6 @@ type CalcResult = {
   finalAvgPrice: number | null
   sell1Price: number | null
   sell2Price: number | null
-  riskMode: boolean
 }
 
 function calcResults(entry: StockEntry): CalcResult | null {
@@ -138,25 +137,6 @@ function calcResults(entry: StockEntry): CalcResult | null {
     price: roundToTick(after - diff * b.r, entry.market),
     amount: hasInvest ? Math.round(invest * b.w) : null,
   }))
-
-  // ── 5파 리스크 방어 모드: GapRatio > 15% 시 매수가 재산정 ────────────
-  let riskMode = false
-  if (entry.waveType === 'wave5' && cfg.buys.length >= 3) {
-    const rawStopLoss = after - diff * 0.886
-    const defaultBuy1Raw = after - diff * cfg.buys[0].r
-    if (defaultBuy1Raw > 0) {
-      const gapRatio = (defaultBuy1Raw - rawStopLoss) / defaultBuy1Raw
-      if (gapRatio > 0.15) {
-        riskMode = true
-        const rb1 = roundToTick(rawStopLoss / 0.85, entry.market)
-        const rb3 = roundToTick(rawStopLoss / 0.97, entry.market)
-        const rb2 = roundToTick((rb1 + rb3) / 2, entry.market)
-        buyResults[0] = { price: rb1, amount: buyResults[0].amount }
-        buyResults[1] = { price: rb2, amount: buyResults[1].amount }
-        buyResults[2] = { price: rb3, amount: buyResults[2].amount }
-      }
-    }
-  }
 
   let intermediateAvgPrice: number | null = null
   let finalAvgPrice: number | null = null
@@ -195,11 +175,16 @@ function calcResults(entry: StockEntry): CalcResult | null {
     sell2Price = roundToTick(finalAvgPrice + (after - finalAvgPrice) * 0.618, entry.market)
   }
 
+  // wave5는 평단가 기준 -15% 동적 손절가, 나머지는 되돌림 비율 기준
+  const stopLossPrice = entry.waveType === 'wave5' && finalAvgPrice !== null
+    ? roundToTick(finalAvgPrice * 0.85, entry.market)
+    : cfg.stopLossR !== null
+      ? roundToTick(after - diff * cfg.stopLossR, entry.market)
+      : null
+
   return {
     buys: buyResults,
-    stopLossPrice: cfg.stopLossR !== null
-      ? roundToTick(after - diff * cfg.stopLossR, entry.market)
-      : null,
+    stopLossPrice,
     avgPrice: cfg.avgPriceR !== null
       ? roundToTick(after - diff * cfg.avgPriceR, entry.market)
       : null,
@@ -207,7 +192,6 @@ function calcResults(entry: StockEntry): CalcResult | null {
     finalAvgPrice,
     sell1Price,
     sell2Price,
-    riskMode,
   }
 }
 
@@ -364,12 +348,6 @@ export default function Home() {
           {entries.map((entry, idx) => {
             const res = calcResults(entry)
             const cfg = WAVE_CONFIGS[entry.waveType]
-            const wave5Risk = entry.waveType === 'wave5' && (res?.riskMode ?? false)
-            const riskBuyLabels = [
-              '손절선 ÷ 0.85 · 비중 20%',
-              '(1차+3차) ÷ 2 · 비중 40%',
-              '손절선 ÷ 0.97 · 비중 40%',
-            ]
 
             return (
               <div
@@ -544,14 +522,6 @@ export default function Home() {
                     ) : (
                       /* 2파 / 4파 / 5파: 1차 → 2차 → 평단가(1~2차) → 3차 → 최종평단가 → 매도 → 손절선 */
                       <>
-                        {/* 5파 리스크 방어 모드 배너 */}
-                        {wave5Risk && (
-                          <div className={`border rounded-lg px-3 py-2 ${dark ? 'bg-amber-950 border-amber-700 text-amber-300' : 'bg-amber-50 border-amber-300 text-amber-800'}`}>
-                            <p className={`text-xs font-bold ${dark ? 'text-amber-400' : 'text-amber-700'}`}>⚠️ 대세 하락 리스크 방어 모드 가동</p>
-                            <p className="text-xs opacity-70 mt-0.5">손실 15% 제한 기준으로 매수 타점 재산정</p>
-                          </div>
-                        )}
-
                         {/* 1차, 2차 매수 */}
                         {cfg.buys.slice(0, 2).map((buy, bIdx) => (
                           <div
@@ -561,7 +531,7 @@ export default function Home() {
                             <div className="flex items-start justify-between gap-2">
                               <div className="leading-tight min-w-0">
                                 <p className={`text-xs font-bold ${boxStyles[Math.min(bIdx, boxStyles.length - 1)].label}`}>{bIdx + 1}차매수</p>
-                                <p className="text-xs opacity-60 break-keep">{wave5Risk ? riskBuyLabels[bIdx] : buy.label}</p>
+                                <p className="text-xs opacity-60 break-keep">{buy.label}</p>
                               </div>
                               <div className="text-right shrink-0">
                                 <span className="text-base font-bold tabular-nums block">
@@ -604,7 +574,7 @@ export default function Home() {
                             <div className="flex items-start justify-between gap-2">
                               <div className="leading-tight min-w-0">
                                 <p className={`text-xs font-bold ${boxStyles[2].label}`}>3차매수</p>
-                                <p className="text-xs opacity-60 break-keep">{wave5Risk ? riskBuyLabels[2] : cfg.buys[2].label}</p>
+                                <p className="text-xs opacity-60 break-keep">{cfg.buys[2].label}</p>
                               </div>
                               <div className="text-right shrink-0">
                                 <span className="text-base font-bold tabular-nums block">
@@ -703,12 +673,16 @@ export default function Home() {
                         )}
 
                         {/* 손절가 박스 */}
-                        {cfg.stopLossR !== null && (
+                        {(cfg.stopLossR !== null || entry.waveType === 'wave5') && (
                           <div className={`border rounded-lg px-3 py-2.5 ${dark ? 'bg-red-950 border-red-800 text-red-400' : 'bg-red-50 border-red-200 text-red-600'}`}>
                             <div className="flex items-start justify-between gap-2">
                               <div className="leading-tight min-w-0">
                                 <p className={`text-xs font-bold ${dark ? 'text-red-500' : 'text-red-400'}`}>손절선 · 전량 매도</p>
-                                <p className="text-xs opacity-60 break-keep">{cfg.stopLossLabel}</p>
+                                <p className="text-xs opacity-60 break-keep">
+                                  {entry.waveType === 'wave5'
+                                    ? '리스크 한도 -15% 동적 컷'
+                                    : cfg.stopLossLabel}
+                                </p>
                               </div>
                               <div className="text-right shrink-0">
                                 <span className="text-base font-bold tabular-nums block">
