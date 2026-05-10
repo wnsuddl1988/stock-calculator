@@ -15,6 +15,10 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: "임펄스 파동 계산기",
   description: "임펄스 파동 피보나치 되돌림 매수구간 계산기",
+  robots: {
+    index: false,
+    follow: false,
+  },
 };
 
 export default function RootLayout({
