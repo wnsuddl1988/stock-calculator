@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 
 type Market = 'kospi' | 'kosdaq'
 type WaveType = 'basic' | 'wave2' | 'wave4' | 'wave5'
@@ -119,9 +119,8 @@ type CalcResult = {
   intermediateAvgPrice: number | null
   finalAvgPrice: number | null
   sell1Price: number | null
-  sell1aPrice: number | null
-  sell1bPrice: number | null
   sell2Price: number | null
+  sell3Price: number | null
 }
 
 function calcResults(entry: StockEntry): CalcResult | null {
@@ -158,29 +157,30 @@ function calcResults(entry: StockEntry): CalcResult | null {
   }
 
   let sell1Price: number | null = null
-  let sell1aPrice: number | null = null
-  let sell1bPrice: number | null = null
   let sell2Price: number | null = null
+  let sell3Price: number | null = null
 
   if (entry.waveType === 'wave2' && finalAvgPrice !== null) {
-    // 1차 매도: 1파 최고점(after) * 0.99
-    sell1Price = roundToTick(after * 0.99, entry.market)
-    // 2차 매도: 평단가 + (1파 최고점 - 1파 시작점) * 1.618
-    sell2Price = roundToTick(finalAvgPrice + diff * 1.618, entry.market)
-  } else if (entry.waveType === 'wave4' && finalAvgPrice !== null && intermediateAvgPrice !== null) {
-    // 1차 체결 시: 1차 매수가 * 1.05
-    sell1aPrice = roundToTick(buyResults[0].price * 1.05, entry.market)
-    // 2차 체결 시: 1~2차 평단가 * 1.05
-    sell1bPrice = roundToTick(intermediateAvgPrice * 1.05, entry.market)
-    // 3차 체결 시(= 기존 sell1Price): 최종 평단가 * 1.05
+    // 1차 매도: 평단가 +15% vs 1파 고점 -1% 중 낮은 값 (보수적)
+    sell1Price = roundToTick(Math.min(finalAvgPrice * 1.15, after * 0.99), entry.market)
+    // 2차 매도: 평단가 +25%
+    sell2Price = roundToTick(finalAvgPrice * 1.25, entry.market)
+    // 3차 매도: 평단가 +40%
+    sell3Price = roundToTick(finalAvgPrice * 1.40, entry.market)
+  } else if (entry.waveType === 'wave4' && finalAvgPrice !== null) {
+    // 1차 매도: 평단가 +5% 기계적 익절
     sell1Price = roundToTick(finalAvgPrice * 1.05, entry.market)
-    // 2차 매도: 3파 최고점(after) * 0.99
+    // 2차 매도: 3파 고점(after) -1% 쌍봉 회피
     sell2Price = roundToTick(after * 0.99, entry.market)
+    // 3차 매도: 3파 고점(after) +5% 오버슈팅
+    sell3Price = roundToTick(after * 1.05, entry.market)
   } else if (entry.waveType === 'wave5' && finalAvgPrice !== null) {
-    // 1차 매도: 평단가 + (5파 최고점 - 평단가) * 0.382
-    sell1Price = roundToTick(finalAvgPrice + (after - finalAvgPrice) * 0.382, entry.market)
-    // 2차 매도: 평단가 + (5파 최고점 - 평단가) * 0.618
-    sell2Price = roundToTick(finalAvgPrice + (after - finalAvgPrice) * 0.618, entry.market)
+    // 1차 매도: 평단가 +7% 생존 익절
+    sell1Price = roundToTick(finalAvgPrice * 1.07, entry.market)
+    // 2차 매도: 평단가 +12%
+    sell2Price = roundToTick(finalAvgPrice * 1.12, entry.market)
+    // 3차 매도: 평단가 +18%
+    sell3Price = roundToTick(finalAvgPrice * 1.18, entry.market)
   }
 
   // wave5는 평단가 기준 -15% 동적 손절가, 나머지는 되돌림 비율 기준
@@ -199,9 +199,8 @@ function calcResults(entry: StockEntry): CalcResult | null {
     intermediateAvgPrice,
     finalAvgPrice,
     sell1Price,
-    sell1aPrice,
-    sell1bPrice,
     sell2Price,
+    sell3Price,
   }
 }
 
@@ -216,11 +215,34 @@ function getTickLabel(price: string, market: Market): string {
   return `호가단위 ${tick.toLocaleString('ko-KR')}원`
 }
 
+const LOCK_PASSWORD = '3729'
+const STORAGE_KEY = 'calc_auth_v1'
+
 export default function Home() {
+  const [isLocked, setIsLocked] = useState(true)
+  const [pwInput, setPwInput] = useState('')
+  const [pwError, setPwError] = useState(false)
   const [dark, setDark] = useState(true)
   const [entries, setEntries] = useState<StockEntry[]>([
     { id: 1, stockName: '', beforePrice: '', afterPrice: '', investAmount: '', market: 'kospi', waveType: 'basic' },
   ])
+
+  useEffect(() => {
+    if (localStorage.getItem(STORAGE_KEY) === '1') {
+      setIsLocked(false)
+    }
+  }, [])
+
+  const handleUnlock = () => {
+    if (pwInput === LOCK_PASSWORD) {
+      localStorage.setItem(STORAGE_KEY, '1')
+      setIsLocked(false)
+      setPwError(false)
+    } else {
+      setPwError(true)
+      setPwInput('')
+    }
+  }
 
   const updateEntry = (id: number, field: keyof StockEntry, value: string) => {
     setEntries((prev) => prev.map((e) => (e.id === id ? { ...e, [field]: value } : e)))
@@ -272,6 +294,8 @@ export default function Home() {
         sellLabel1: 'text-cyan-400',
         sellBox2: 'bg-blue-950 border-blue-700 text-blue-300',
         sellLabel2: 'text-blue-400',
+        sellBox3: 'bg-violet-950 border-violet-700 text-violet-300',
+        sellLabel3: 'text-violet-400',
       }
     : {
         page: 'bg-gray-50',
@@ -305,6 +329,8 @@ export default function Home() {
         sellLabel1: 'text-cyan-600',
         sellBox2: 'bg-blue-50 border-blue-200 text-blue-700',
         sellLabel2: 'text-blue-600',
+        sellBox3: 'bg-violet-50 border-violet-200 text-violet-700',
+        sellLabel3: 'text-violet-600',
       }
 
   const boxStyles = [
@@ -312,6 +338,56 @@ export default function Home() {
     { box: T.resultBox2, label: T.resultLabel2 },
     { box: T.resultBox3, label: T.resultLabel3 },
   ]
+
+  if (isLocked) {
+    return (
+      <div className="min-h-screen bg-black flex items-center justify-center px-4">
+        <div className="bg-zinc-900 border border-zinc-700 rounded-2xl p-8 w-full max-w-xs flex flex-col items-center gap-6 shadow-2xl">
+          {/* 자물쇠 아이콘 */}
+          <div className="w-14 h-14 rounded-2xl bg-zinc-800 flex items-center justify-center">
+            <svg className="w-7 h-7 text-zinc-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+            </svg>
+          </div>
+
+          <div className="text-center">
+            <h1 className="text-white text-lg font-bold">임펄스 파동 계산기</h1>
+            <p className="text-zinc-500 text-xs mt-1">비밀번호를 입력하세요</p>
+          </div>
+
+          {/* 비밀번호 입력 */}
+          <div className="w-full">
+            <input
+              type="password"
+              inputMode="numeric"
+              value={pwInput}
+              onChange={(e) => { setPwInput(e.target.value); setPwError(false) }}
+              onKeyDown={(e) => e.key === 'Enter' && handleUnlock()}
+              placeholder="비밀번호"
+              autoFocus
+              className={`w-full text-center text-lg tracking-[0.4em] bg-zinc-800 border rounded-xl px-4 py-3 text-white placeholder-zinc-600 focus:outline-none focus:ring-1 transition ${
+                pwError
+                  ? 'border-red-500 focus:border-red-500 focus:ring-red-500'
+                  : 'border-zinc-600 focus:border-blue-500 focus:ring-blue-500'
+              }`}
+            />
+            {pwError && (
+              <p className="text-red-400 text-xs text-center mt-2">비밀번호가 올바르지 않습니다.</p>
+            )}
+          </div>
+
+          {/* 확인 버튼 */}
+          <button
+            onClick={handleUnlock}
+            className="w-full bg-blue-600 hover:bg-blue-500 active:bg-blue-700 text-white font-semibold rounded-xl py-3 text-sm transition-colors"
+          >
+            잠금 해제
+          </button>
+        </div>
+      </div>
+    )
+  }
 
   return (
     <main className={`min-h-screen ${T.page} py-10 px-4 transition-colors duration-300`}>
@@ -625,21 +701,25 @@ export default function Home() {
                         {(entry.waveType === 'wave2' || entry.waveType === 'wave4' || entry.waveType === 'wave5') && (
                           <div className={`flex items-center gap-2 py-0.5`}>
                             <div className={`flex-1 border-t border-dashed ${dark ? 'border-cyan-800' : 'border-cyan-300'}`} />
-                            <span className={`text-xs font-semibold px-1 ${dark ? 'text-cyan-600' : 'text-cyan-500'}`}>목표 매도가 (수익실현)</span>
+                            <span className={`text-xs font-semibold px-1 ${dark ? 'text-cyan-600' : 'text-cyan-500'}`}>목표 매도가 (3분할 수익실현)</span>
                             <div className={`flex-1 border-t border-dashed ${dark ? 'border-cyan-800' : 'border-cyan-300'}`} />
                           </div>
                         )}
 
-                        {/* 1차 매도 — wave2 / wave5: 단일 가격 */}
-                        {(entry.waveType === 'wave2' || entry.waveType === 'wave5') && (
+                        {/* 1차 매도 */}
+                        {(entry.waveType === 'wave2' || entry.waveType === 'wave4' || entry.waveType === 'wave5') && (
                           <div className={`border rounded-lg px-3 py-2.5 ${T.sellBox1}`}>
                             <div className="flex items-start justify-between gap-2">
                               <div className="leading-tight min-w-0">
-                                <p className={`text-xs font-bold ${T.sellLabel1}`}>📈 1차 매도 · 비중 50%</p>
+                                <p className={`text-xs font-bold ${T.sellLabel1}`}>
+                                  📈 {entry.waveType === 'wave2' ? '1차 매도 (비중 50%)' : entry.waveType === 'wave4' ? '1차 매도 (비중 40%)' : '1차 매도 (비중 60%)'}
+                                </p>
                                 <p className="text-xs opacity-60 break-keep">
                                   {entry.waveType === 'wave2'
-                                    ? '1차 수익실현 (1파 고점 저항대 1% 하단)'
-                                    : '1차 수익실현 (거대 낙폭의 0.382 기술적 반등)'}
+                                    ? '1파 고점 턱밑 또는 +15% 수익'
+                                    : entry.waveType === 'wave4'
+                                    ? '최종 평단가 +5% 기계적 익절'
+                                    : '최종 평단가 +7% 생존 익절 (핵심)'}
                                 </p>
                               </div>
                               <div className="text-right shrink-0">
@@ -654,51 +734,54 @@ export default function Home() {
                           </div>
                         )}
 
-                        {/* 1차 매도 — wave4: 체결 구간별 3단계 가격 */}
-                        {entry.waveType === 'wave4' && (
-                          <div className={`border rounded-lg px-3 py-3 ${T.sellBox1}`}>
-                            <p className={`text-xs font-bold ${T.sellLabel1} mb-2`}>📈 1차 매도 · 비중 50% (체결 구간별 +5% 익절가)</p>
-                            <div className="space-y-1.5">
-                              {([
-                                { label: '1차 체결 시', price: res?.sell1aPrice },
-                                { label: '2차 체결 시', price: res?.sell1bPrice },
-                                { label: '3차 체결 시', price: res?.sell1Price },
-                              ] as { label: string; price: number | null | undefined }[]).map(({ label, price }) => (
-                                <div key={label} className="flex items-center justify-between gap-2">
-                                  <span className="text-xs opacity-60 shrink-0">{label}</span>
-                                  <span className="text-sm font-bold tabular-nums">
-                                    {price != null
-                                      ? <>{formatPrice(price)}<span className="text-xs font-normal ml-0.5">원</span></>
-                                      : <span className={T.empty}>-</span>
-                                    }
-                                  </span>
-                                </div>
-                              ))}
-                            </div>
-                            <p className={`text-xs mt-2.5 pt-2 border-t opacity-60 ${dark ? 'border-cyan-800' : 'border-cyan-200'}`}>
-                              보유 물량에 맞는 가격으로 HTS 개별 지정가 매도 설정
-                            </p>
-                          </div>
-                        )}
-
                         {/* 2차 매도 */}
                         {(entry.waveType === 'wave2' || entry.waveType === 'wave4' || entry.waveType === 'wave5') && (
                           <div className={`border rounded-lg px-3 py-2.5 ${T.sellBox2}`}>
                             <div className="flex items-start justify-between gap-2">
                               <div className="leading-tight min-w-0">
-                                <p className={`text-xs font-bold ${T.sellLabel2}`}>🚀 2차 매도 · 전량청산</p>
+                                <p className={`text-xs font-bold ${T.sellLabel2}`}>
+                                  📊 {entry.waveType === 'wave2' ? '2차 매도 (비중 30%)' : entry.waveType === 'wave4' ? '2차 매도 (비중 40%)' : '2차 매도 (비중 30%)'}
+                                </p>
                                 <p className="text-xs opacity-60 break-keep">
                                   {entry.waveType === 'wave2'
-                                    ? '최종 전량매도 (피보나치 확장 1.618)'
+                                    ? '최종 평단가 +25% 구간'
                                     : entry.waveType === 'wave4'
-                                    ? '최종 전량매도 (쌍봉 마지노선 1% 하단)'
-                                    : '최종 전량매도 (구조적 저항선 0.618 회귀)'}
+                                    ? '3파 고점 턱밑 (쌍봉 회피)'
+                                    : '최종 평단가 +12% 기술적 반등'}
                                 </p>
                               </div>
                               <div className="text-right shrink-0">
                                 <span className="text-base font-bold tabular-nums block">
                                   {res && res.sell2Price !== null
                                     ? <>{formatPrice(res.sell2Price)}<span className="text-xs font-normal ml-0.5">원</span></>
+                                    : <span className={T.empty}>-</span>
+                                  }
+                                </span>
+                              </div>
+                            </div>
+                          </div>
+                        )}
+
+                        {/* 3차 매도 · 전량청산 */}
+                        {(entry.waveType === 'wave2' || entry.waveType === 'wave4' || entry.waveType === 'wave5') && (
+                          <div className={`border rounded-lg px-3 py-2.5 ${T.sellBox3}`}>
+                            <div className="flex items-start justify-between gap-2">
+                              <div className="leading-tight min-w-0">
+                                <p className={`text-xs font-bold ${T.sellLabel3}`}>
+                                  🚀 {entry.waveType === 'wave2' ? '3차 매도 · 전량청산 (비중 20%)' : entry.waveType === 'wave4' ? '3차 매도 · 전량청산 (비중 20%)' : '3차 매도 · 전량청산 (비중 10%)'}
+                                </p>
+                                <p className="text-xs opacity-60 break-keep">
+                                  {entry.waveType === 'wave2'
+                                    ? '최종 평단가 +40% (추세 추종)'
+                                    : entry.waveType === 'wave4'
+                                    ? '3파 고점 +5% (오버슈팅 탈출)'
+                                    : '최종 평단가 +18% 최대 반등 목표'}
+                                </p>
+                              </div>
+                              <div className="text-right shrink-0">
+                                <span className="text-base font-bold tabular-nums block">
+                                  {res && res.sell3Price !== null
+                                    ? <>{formatPrice(res.sell3Price)}<span className="text-xs font-normal ml-0.5">원</span></>
                                     : <span className={T.empty}>-</span>
                                   }
                                 </span>
