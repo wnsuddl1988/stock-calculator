@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 
 type Market = 'kospi' | 'kosdaq'
 type WaveType = 'basic' | 'wave2' | 'wave4' | 'wave5'
+type FillScenario = 'fill1' | 'fill12' | 'fillAll'
 
 type StockEntry = {
   id: number
@@ -226,6 +227,10 @@ export default function Home() {
   const [entries, setEntries] = useState<StockEntry[]>([
     { id: 1, stockName: '', beforePrice: '', afterPrice: '', investAmount: '', market: 'kospi', waveType: 'basic' },
   ])
+  const [fillScenarios, setFillScenarios] = useState<Record<number, FillScenario>>({})
+
+  const updateFillScenario = (id: number, s: FillScenario) =>
+    setFillScenarios((prev) => ({ ...prev, [id]: s }))
 
   useEffect(() => {
     if (localStorage.getItem(STORAGE_KEY) === '1') {
@@ -434,6 +439,43 @@ export default function Home() {
           {entries.map((entry, idx) => {
             const res = calcResults(entry)
             const cfg = WAVE_CONFIGS[entry.waveType]
+            const scenario: FillScenario = fillScenarios[entry.id] ?? 'fillAll'
+            const waveHigh = parseFloat(entry.afterPrice)
+            const isWave = entry.waveType === 'wave2' || entry.waveType === 'wave4' || entry.waveType === 'wave5'
+
+            // ── 체결 시나리오별 동적 평단가 ──────────────────────────────
+            let dynamicAvg: number | null = null
+            if (res && isWave && res.buys.length >= 3) {
+              const [p0, p1, p2] = res.buys.map((b) => b.price)
+              const [w0, w1, w2] = cfg.buys.map((b) => b.w)
+              if (scenario === 'fill1') {
+                dynamicAvg = p0
+              } else if (scenario === 'fill12') {
+                dynamicAvg = roundToTick((p0 * w0 + p1 * w1) / (w0 + w1), entry.market)
+              } else {
+                dynamicAvg = roundToTick((p0 * w0 + p1 * w1 + p2 * w2) / (w0 + w1 + w2), entry.market)
+              }
+            }
+
+            // ── 동적 매도가 3분할 계산 ────────────────────────────────────
+            let dynSell1: number | null = null
+            let dynSell2: number | null = null
+            let dynSell3: number | null = null
+            if (dynamicAvg !== null && !isNaN(waveHigh)) {
+              if (entry.waveType === 'wave2') {
+                dynSell1 = roundToTick(Math.min(dynamicAvg * 1.15, waveHigh * 0.99), entry.market)
+                dynSell2 = roundToTick(dynamicAvg * 1.25, entry.market)
+                dynSell3 = roundToTick(dynamicAvg * 1.40, entry.market)
+              } else if (entry.waveType === 'wave4') {
+                dynSell1 = roundToTick(dynamicAvg * 1.05, entry.market)
+                dynSell2 = roundToTick(waveHigh * 0.99, entry.market)
+                dynSell3 = roundToTick(waveHigh * 1.05, entry.market)
+              } else if (entry.waveType === 'wave5') {
+                dynSell1 = roundToTick(dynamicAvg * 1.07, entry.market)
+                dynSell2 = roundToTick(dynamicAvg * 1.12, entry.market)
+                dynSell3 = roundToTick(dynamicAvg * 1.18, entry.market)
+              }
+            }
 
             return (
               <div
@@ -697,8 +739,36 @@ export default function Home() {
                           </div>
                         </div>
 
+                        {/* 체결 상태 선택 */}
+                        {isWave && (
+                          <div className={`rounded-xl border px-3 py-2.5 ${dark ? 'bg-zinc-900 border-zinc-600' : 'bg-gray-100 border-gray-300'}`}>
+                            <p className={`text-xs font-semibold mb-2 ${dark ? 'text-zinc-400' : 'text-gray-500'}`}>체결 상태 선택</p>
+                            <div className="flex gap-1">
+                              {([
+                                { key: 'fill1' as FillScenario, label: '1차만 체결' },
+                                { key: 'fill12' as FillScenario, label: '1~2차 체결' },
+                                { key: 'fillAll' as FillScenario, label: '풀매수 체결' },
+                              ]).map(({ key, label }) => (
+                                <button
+                                  key={key}
+                                  onClick={() => updateFillScenario(entry.id, key)}
+                                  className={`flex-1 py-1.5 text-xs font-semibold rounded-lg border transition-all ${
+                                    scenario === key
+                                      ? 'bg-amber-500 border-amber-400 text-white'
+                                      : dark
+                                      ? 'bg-zinc-700 border-zinc-600 text-zinc-300 hover:bg-zinc-600'
+                                      : 'bg-white border-gray-300 text-gray-500 hover:bg-gray-50'
+                                  }`}
+                                >
+                                  {label}
+                                </button>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+
                         {/* 목표 매도가 구분선 */}
-                        {(entry.waveType === 'wave2' || entry.waveType === 'wave4' || entry.waveType === 'wave5') && (
+                        {isWave && (
                           <div className={`flex items-center gap-2 py-0.5`}>
                             <div className={`flex-1 border-t border-dashed ${dark ? 'border-cyan-800' : 'border-cyan-300'}`} />
                             <span className={`text-xs font-semibold px-1 ${dark ? 'text-cyan-600' : 'text-cyan-500'}`}>목표 매도가 (3분할 수익실현)</span>
@@ -707,7 +777,7 @@ export default function Home() {
                         )}
 
                         {/* 1차 매도 */}
-                        {(entry.waveType === 'wave2' || entry.waveType === 'wave4' || entry.waveType === 'wave5') && (
+                        {isWave && (
                           <div className={`border rounded-lg px-3 py-2.5 ${T.sellBox1}`}>
                             <div className="flex items-start justify-between gap-2">
                               <div className="leading-tight min-w-0">
@@ -718,14 +788,14 @@ export default function Home() {
                                   {entry.waveType === 'wave2'
                                     ? '1파 고점 턱밑 또는 +15% 수익'
                                     : entry.waveType === 'wave4'
-                                    ? '최종 평단가 +5% 기계적 익절'
-                                    : '최종 평단가 +7% 생존 익절 (핵심)'}
+                                    ? '평단가 +5% 기계적 익절'
+                                    : '평단가 +7% 생존 익절 (핵심)'}
                                 </p>
                               </div>
                               <div className="text-right shrink-0">
                                 <span className="text-base font-bold tabular-nums block">
-                                  {res && res.sell1Price !== null
-                                    ? <>{formatPrice(res.sell1Price)}<span className="text-xs font-normal ml-0.5">원</span></>
+                                  {dynSell1 !== null
+                                    ? <>{formatPrice(dynSell1)}<span className="text-xs font-normal ml-0.5">원</span></>
                                     : <span className={T.empty}>-</span>
                                   }
                                 </span>
@@ -735,7 +805,7 @@ export default function Home() {
                         )}
 
                         {/* 2차 매도 */}
-                        {(entry.waveType === 'wave2' || entry.waveType === 'wave4' || entry.waveType === 'wave5') && (
+                        {isWave && (
                           <div className={`border rounded-lg px-3 py-2.5 ${T.sellBox2}`}>
                             <div className="flex items-start justify-between gap-2">
                               <div className="leading-tight min-w-0">
@@ -744,16 +814,16 @@ export default function Home() {
                                 </p>
                                 <p className="text-xs opacity-60 break-keep">
                                   {entry.waveType === 'wave2'
-                                    ? '최종 평단가 +25% 구간'
+                                    ? '평단가 +25% 구간'
                                     : entry.waveType === 'wave4'
                                     ? '3파 고점 턱밑 (쌍봉 회피)'
-                                    : '최종 평단가 +12% 기술적 반등'}
+                                    : '평단가 +12% 기술적 반등'}
                                 </p>
                               </div>
                               <div className="text-right shrink-0">
                                 <span className="text-base font-bold tabular-nums block">
-                                  {res && res.sell2Price !== null
-                                    ? <>{formatPrice(res.sell2Price)}<span className="text-xs font-normal ml-0.5">원</span></>
+                                  {dynSell2 !== null
+                                    ? <>{formatPrice(dynSell2)}<span className="text-xs font-normal ml-0.5">원</span></>
                                     : <span className={T.empty}>-</span>
                                   }
                                 </span>
@@ -763,7 +833,7 @@ export default function Home() {
                         )}
 
                         {/* 3차 매도 · 전량청산 */}
-                        {(entry.waveType === 'wave2' || entry.waveType === 'wave4' || entry.waveType === 'wave5') && (
+                        {isWave && (
                           <div className={`border rounded-lg px-3 py-2.5 ${T.sellBox3}`}>
                             <div className="flex items-start justify-between gap-2">
                               <div className="leading-tight min-w-0">
@@ -772,22 +842,29 @@ export default function Home() {
                                 </p>
                                 <p className="text-xs opacity-60 break-keep">
                                   {entry.waveType === 'wave2'
-                                    ? '최종 평단가 +40% (추세 추종)'
+                                    ? '평단가 +40% (추세 추종)'
                                     : entry.waveType === 'wave4'
                                     ? '3파 고점 +5% (오버슈팅 탈출)'
-                                    : '최종 평단가 +18% 최대 반등 목표'}
+                                    : '평단가 +18% 최대 반등 목표'}
                                 </p>
                               </div>
                               <div className="text-right shrink-0">
                                 <span className="text-base font-bold tabular-nums block">
-                                  {res && res.sell3Price !== null
-                                    ? <>{formatPrice(res.sell3Price)}<span className="text-xs font-normal ml-0.5">원</span></>
+                                  {dynSell3 !== null
+                                    ? <>{formatPrice(dynSell3)}<span className="text-xs font-normal ml-0.5">원</span></>
                                     : <span className={T.empty}>-</span>
                                   }
                                 </span>
                               </div>
                             </div>
                           </div>
+                        )}
+
+                        {/* 현재 시나리오 평단가 힌트 */}
+                        {isWave && dynamicAvg !== null && (
+                          <p className={`text-xs text-center py-0.5 ${dark ? 'text-zinc-500' : 'text-gray-400'}`}>
+                            현재 시나리오 평단가: <span className={`font-semibold ${dark ? 'text-zinc-300' : 'text-gray-600'}`}>{formatPrice(dynamicAvg)}원</span>
+                          </p>
                         )}
 
                         {/* 손절가 박스 */}
