@@ -46,9 +46,9 @@ const WAVE_CONFIGS: Record<WaveType, WaveConfig> = {
   },
   wave2: {
     buys: [
-      { r: 0.44, w: 0.2, label: '0.44 되돌림 · 비중 20%' },
-      { r: 0.56, w: 0.4, label: '0.56 되돌림 · 비중 40%' },
-      { r: 0.68, w: 0.4, label: '0.68 되돌림 · 비중 40%' },
+      { r: 0.44, w: 8 / 30, label: '0.44 되돌림 · 비중 약 26.7%(8)' },
+      { r: 0.56, w: 11 / 30, label: '0.56 되돌림 · 비중 약 36.7%(11)' },
+      { r: 0.68, w: 11 / 30, label: '0.68 되돌림 · 비중 약 36.6%(11)' },
     ],
     stopLossR: 0.786,
     stopLossLabel: '0.786 되돌림',
@@ -58,9 +58,9 @@ const WAVE_CONFIGS: Record<WaveType, WaveConfig> = {
   },
   wave4: {
     buys: [
-      { r: 0.44, w: 0.2, label: '0.44 되돌림 · 비중 20%' },
-      { r: 0.53, w: 0.4, label: '0.53 되돌림 · 비중 40%' },
-      { r: 0.62, w: 0.4, label: '0.62 되돌림 · 비중 40%' },
+      { r: 0.44, w: 8 / 30, label: '0.44 되돌림 · 비중 약 26.7%(8)' },
+      { r: 0.53, w: 11 / 30, label: '0.53 되돌림 · 비중 약 36.7%(11)' },
+      { r: 0.62, w: 11 / 30, label: '0.62 되돌림 · 비중 약 36.6%(11)' },
     ],
     stopLossR: 0.71,
     stopLossLabel: '0.71 되돌림',
