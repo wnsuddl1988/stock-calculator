@@ -805,11 +805,11 @@ export default function Home() {
                         )}
 
                         {/* 1차 매도 체결 후 스탑로스 안내 */}
-                        {isWave && entry.waveType === 'wave4' && dynSell1 !== null && (
+                        {isWave && dynSell1 !== null && (
                           <div className={`border rounded-lg px-3 py-2 text-xs ${dark ? 'bg-amber-950 border-amber-700 text-amber-300' : 'bg-amber-50 border-amber-300 text-amber-800'}`}>
                             <p className="font-bold mb-0.5">🔔 1차 매도 체결 후 즉시 실행</p>
                             <p className={`leading-snug break-keep ${dark ? 'text-amber-400 opacity-80' : 'text-amber-700 opacity-90'}`}>
-                              잔량(50%)에 대해 <span className="font-semibold">평단가(본전) 스탑로스</span>를 설정하세요.
+                              잔량({entry.waveType === 'wave5' ? '40%' : '50%'})에 대해 <span className="font-semibold">평단가(본전) 스탑로스</span>를 설정하세요.
                               HTS·MTS의 <span className="font-semibold">조건부 주문 또는 예약 매도</span>를 이용해 평단가 이하 시 자동 손절되도록 등록하면, 이후 눌림에도 원금 손실 없이 잔량을 보유할 수 있습니다.
                             </p>
                           </div>
