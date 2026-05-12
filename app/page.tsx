@@ -169,12 +169,12 @@ function calcResults(entry: StockEntry): CalcResult | null {
     // 3차 매도: 평단가 +40%
     sell3Price = roundToTick(finalAvgPrice * 1.40, entry.market)
   } else if (entry.waveType === 'wave4' && finalAvgPrice !== null) {
-    // 1차 매도: 평단가 +5% 기계적 익절
+    // 1차 매도 (50%): 평단가 +5% 수익 확정
     sell1Price = roundToTick(finalAvgPrice * 1.05, entry.market)
-    // 2차 매도: 3파 고점(after) -1% 쌍봉 회피
-    sell2Price = roundToTick(after * 0.99, entry.market)
-    // 3차 매도: 3파 고점(after) +5% 오버슈팅
-    sell3Price = roundToTick(after * 1.05, entry.market)
+    // 2차 매도 (30%): 평단가 +12% 스윙 익절
+    sell2Price = roundToTick(finalAvgPrice * 1.12, entry.market)
+    // 3차 매도 (20%): 3파 고점 98% (전고점 돌파 직전, 체결 확률 극대화)
+    sell3Price = roundToTick(after * 0.98, entry.market)
   } else if (entry.waveType === 'wave5' && finalAvgPrice !== null) {
     // 1차 매도: 평단가 +7% 생존 익절
     sell1Price = roundToTick(finalAvgPrice * 1.07, entry.market)
@@ -468,8 +468,8 @@ export default function Home() {
                 dynSell3 = roundToTick(dynamicAvg * 1.40, entry.market)
               } else if (entry.waveType === 'wave4') {
                 dynSell1 = roundToTick(dynamicAvg * 1.05, entry.market)
-                dynSell2 = roundToTick(waveHigh * 0.99, entry.market)
-                dynSell3 = roundToTick(waveHigh * 1.05, entry.market)
+                dynSell2 = roundToTick(dynamicAvg * 1.12, entry.market)
+                dynSell3 = roundToTick(waveHigh * 0.98, entry.market)
               } else if (entry.waveType === 'wave5') {
                 dynSell1 = roundToTick(dynamicAvg * 1.07, entry.market)
                 dynSell2 = roundToTick(dynamicAvg * 1.12, entry.market)
@@ -782,13 +782,13 @@ export default function Home() {
                             <div className="flex items-start justify-between gap-2">
                               <div className="leading-tight min-w-0">
                                 <p className={`text-xs font-bold ${T.sellLabel1}`}>
-                                  📈 {entry.waveType === 'wave2' ? '1차 매도 (비중 50%)' : entry.waveType === 'wave4' ? '1차 매도 (비중 40%)' : '1차 매도 (비중 60%)'}
+                                  📈 {entry.waveType === 'wave2' ? '1차 매도 (비중 50%)' : entry.waveType === 'wave4' ? '1차 매도 (비중 50%)' : '1차 매도 (비중 60%)'}
                                 </p>
                                 <p className="text-xs opacity-60 break-keep">
                                   {entry.waveType === 'wave2'
                                     ? '1파 고점 턱밑 또는 +15% 수익'
                                     : entry.waveType === 'wave4'
-                                    ? '평단가 +5% 기계적 익절'
+                                    ? '평단가 +5% 수익 확정'
                                     : '평단가 +7% 생존 익절 (핵심)'}
                                 </p>
                               </div>
@@ -810,13 +810,13 @@ export default function Home() {
                             <div className="flex items-start justify-between gap-2">
                               <div className="leading-tight min-w-0">
                                 <p className={`text-xs font-bold ${T.sellLabel2}`}>
-                                  📊 {entry.waveType === 'wave2' ? '2차 매도 (비중 30%)' : entry.waveType === 'wave4' ? '2차 매도 (비중 40%)' : '2차 매도 (비중 30%)'}
+                                  📊 {entry.waveType === 'wave2' ? '2차 매도 (비중 30%)' : entry.waveType === 'wave4' ? '2차 매도 (비중 30%)' : '2차 매도 (비중 30%)'}
                                 </p>
                                 <p className="text-xs opacity-60 break-keep">
                                   {entry.waveType === 'wave2'
                                     ? '평단가 +25% 구간'
                                     : entry.waveType === 'wave4'
-                                    ? '3파 고점 턱밑 (쌍봉 회피)'
+                                    ? '평단가 +12% 스윙 익절'
                                     : '평단가 +12% 기술적 반등'}
                                 </p>
                               </div>
@@ -844,7 +844,7 @@ export default function Home() {
                                   {entry.waveType === 'wave2'
                                     ? '평단가 +40% (추세 추종)'
                                     : entry.waveType === 'wave4'
-                                    ? '3파 고점 +5% (오버슈팅 탈출)'
+                                    ? '전고점 탈환 시도 (3파 고점 98%)'
                                     : '평단가 +18% 최대 반등 목표'}
                                 </p>
                               </div>
